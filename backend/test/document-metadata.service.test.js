@@ -11,6 +11,12 @@ test('deve sanitizar o nome original e preservar a extensão no nome armazenado'
   assert.strictEqual(documentMetadataService.buildStorageFileName(originalName, id), '123.txt');
 });
 
+test('deve preservar a extensão quando precisar usar o nome fallback', () => {
+  const originalName = documentMetadataService.sanitizeOriginalName('   .pdf', '123');
+
+  assert.strictEqual(originalName, 'document-123.pdf');
+});
+
 test('deve montar os dados persistidos com responsável normalizado e mime padrão', () => {
   const documentData = documentMetadataService.createDocumentData({
     file: {

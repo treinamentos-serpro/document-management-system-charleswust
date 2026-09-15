@@ -71,6 +71,9 @@ test('deve baixar o arquivo salvo pelo identificador', async () => {
     const downloadResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents/${uploadedDocument.id}/download`);
 
     assert.strictEqual(downloadResponse.status, 200, 'o download deve retornar 200');
+    assert.strictEqual(downloadResponse.headers.get('content-type'), 'text/plain');
+    assert.ok(downloadResponse.headers.get('content-disposition')?.includes('attachment; filename="download.txt"'));
+    assert.ok(downloadResponse.headers.get('content-disposition')?.includes("filename*=UTF-8''download.txt"));
     const content = await downloadResponse.text();
     assert.strictEqual(content, 'texto de teste para download');
   } finally {

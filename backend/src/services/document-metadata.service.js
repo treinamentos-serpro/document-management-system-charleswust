@@ -3,14 +3,17 @@ const path = require('node:path');
 const MAX_OWNER_LENGTH = Number(process.env.MAX_OWNER_LENGTH || 100);
 
 function sanitizeOriginalName(fileName, id) {
-  const baseName = path.basename(fileName || `document-${id}`);
-  const sanitizedName = baseName.replace(/[\u0000-\u001F\u007F"\\/]/g, '_').trim();
+  const fallbackName = `document-${id}`;
+  const baseName = path.basename(fileName || fallbackName);
+  const extension = path.extname(baseName).replace(/[\u0000-\u001F\u007F"\\/]/g, '_').trim();
+  const nameWithoutExtension = baseName.slice(0, baseName.length - path.extname(baseName).length);
+  const sanitizedName = nameWithoutExtension.replace(/[\u0000-\u001F\u007F"\\/]/g, '_').trim();
 
   if (!sanitizedName) {
-    return `document-${id}`;
+    return `${fallbackName}${extension}`.slice(0, 255);
   }
 
-  return sanitizedName.slice(0, 255);
+  return `${sanitizedName}${extension}`.slice(0, 255);
 }
 
 function normalizeOwner(owner) {

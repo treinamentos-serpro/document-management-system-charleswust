@@ -2,9 +2,16 @@ const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 
 const documentsService = require('../services/documents.service');
+const BAD_REQUEST_MESSAGES = new Set([
+  'Arquivo obrigatório para upload.',
+  'Responsável inválido.',
+  'Tipo de arquivo não permitido.',
+  'Nome de arquivo de armazenamento inválido.',
+  'Caminho temporário de upload inválido.',
+]);
 
 function getStatusCode(error) {
-  return error.message.includes('Arquivo') || error.message.includes('Responsável') ? 400 : 500;
+  return BAD_REQUEST_MESSAGES.has(error.message) ? 400 : 500;
 }
 
 function buildContentDisposition(fileName) {
