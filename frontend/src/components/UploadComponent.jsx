@@ -7,6 +7,7 @@ export default function UploadComponent({ onUpload }) {
   const [owner, setOwner] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -18,17 +19,28 @@ export default function UploadComponent({ onUpload }) {
 
     setIsSubmitting(true);
     setError('');
+    setSuccess('');
+    let uploaded = false;
 
     try {
       await uploadDocument(file, owner);
+      uploaded = true;
       setFile(null);
       setOwner('');
       event.currentTarget.reset();
-      await onUpload();
+      setSuccess('Documento enviado com sucesso.');
     } catch (uploadError) {
       setError(uploadError.message);
     } finally {
       setIsSubmitting(false);
+    }
+
+    if (uploaded) {
+      try {
+        await onUpload();
+      } catch {
+        return;
+      }
     }
   }
 
@@ -59,6 +71,7 @@ export default function UploadComponent({ onUpload }) {
         </button>
       </form>
       {error && <p role="alert">{error}</p>}
+      {success && <p role="status">{success}</p>}
     </section>
   );
 }

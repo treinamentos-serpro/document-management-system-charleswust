@@ -1,15 +1,29 @@
-const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
 const repository = require('../repositories/documents.repository');
 
-const STORAGE_DIR = path.resolve(__dirname, '../../storage');
+const MAX_OWNER_LENGTH = Number(process.env.MAX_OWNER_LENGTH || 100);
 
-function ensureStorageDirectory() {
-  if (!fs.existsSync(STORAGE_DIR)) {
-    fs.mkdirSync(STORAGE_DIR, { recursive: true });
+function sanitizeOriginalName(fileName, id) {
+  const baseName = path.basename(fileName || `document-${id}`);
+  const sanitizedName = baseName.replace(/[\u0000-\u001F\u007F"\\/]/g, '_').trim();
+
+  if (!sanitizedName) {
+    return `document-${id}`;
   }
+
+  return sanitizedName.slice(0, 255);
+}
+
+function normalizeOwner(owner) {
+  const normalizedOwner = String(owner || 'anonymous').trim();
+
+  if (!normalizedOwner || normalizedOwner.length > MAX_OWNER_LENGTH) {
+    throw new Error('Responsável inválido.');
+  }
+
+  return normalizedOwner;
 }
 
 function sanitizeDocument(document) {
@@ -22,32 +36,33 @@ function sanitizeDocument(document) {
   };
 }
 
-function uploadDocument(file, owner) {
+async function uploadDocument(file, owner) {
   if (!file) {
     throw new Error('Arquivo obrigatório para upload.');
   }
 
-  ensureStorageDirectory();
-
   const id = randomUUID();
-  const originalName = file.originalname || `document-${id}`;
+  const originalName = sanitizeOriginalName(file.originalname, id);
   const extension = path.extname(originalName) || '';
   const fileName = `${id}${extension}`;
-  const storagePath = path.join(STORAGE_DIR, fileName);
+  const storagePath = await repository.moveUploadedFile(file.path, fileName);
 
-  fs.renameSync(file.path, storagePath);
+  try {
+    const document = repository.createDocument({
+      id,
+      originalName,
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+      owner: normalizeOwner(owner),
+      storagePath,
+      mimeType: file.mimetype || 'application/octet-stream',
+    });
 
-  const document = repository.createDocument({
-    id,
-    originalName,
-    size: file.size,
-    uploadedAt: new Date().toISOString(),
-    owner: owner || 'anonymous',
-    storagePath,
-    mimeType: file.mimetype || 'application/octet-stream',
-  });
-
-  return sanitizeDocument(document);
+    return sanitizeDocument(document);
+  } catch (error) {
+    await repository.removeFile(storagePath);
+    throw error;
+  }
 }
 
 function listDocuments() {
@@ -70,5 +85,5 @@ module.exports = {
   uploadDocument,
   listDocuments,
   getDocumentById,
-  STORAGE_DIR,
+  sanitizeOriginalName,
 };

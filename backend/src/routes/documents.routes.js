@@ -2,11 +2,21 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const multer = require('multer');
+const { randomUUID } = require('node:crypto');
 
 const documentsController = require('../controllers/documents.controller');
 
 const router = express.Router();
 const storageDir = path.resolve(__dirname, '../../storage');
+const maxFileSize = Number(process.env.MAX_FILE_SIZE_BYTES || 10 * 1024 * 1024);
+const allowedMimeTypes = new Set((process.env.ALLOWED_MIME_TYPES || [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+  'text/plain',
+].join(',')).split(',').map((mimeType) => mimeType.trim()).filter(Boolean));
 
 fs.mkdirSync(storageDir, { recursive: true });
 
@@ -15,16 +25,21 @@ const storage = multer.diskStorage({
     callback(null, storageDir);
   },
   filename: (_req, file, callback) => {
-    const safeName = file.originalname.replace(/\s+/g, '-');
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
-    callback(null, uniqueName);
+    callback(null, randomUUID());
   },
 });
 
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: maxFileSize,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      return callback(new Error('Tipo de arquivo não permitido.'));
+    }
+
+    return callback(null, true);
   },
 });
 

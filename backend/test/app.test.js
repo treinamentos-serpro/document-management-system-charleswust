@@ -67,3 +67,94 @@ test('deve baixar o arquivo salvo pelo identificador', async () => {
     server.close();
   }
 });
+
+test('deve rejeitar upload sem arquivo com resposta JSON', async () => {
+  const server = await startServer();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: new FormData(),
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.deepStrictEqual(await response.json(), { message: 'Arquivo obrigatório para upload.' });
+  } finally {
+    server.close();
+  }
+});
+
+test('deve rejeitar tipo de arquivo não permitido com resposta JSON', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['conteúdo executável'], { type: 'application/x-msdownload' }), 'arquivo.exe');
+
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.deepStrictEqual(await response.json(), { message: 'Tipo de arquivo não permitido.' });
+  } finally {
+    server.close();
+  }
+});
+
+test('deve rejeitar arquivo acima do limite com resposta JSON', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['a'.repeat(10 * 1024 * 1024 + 1)], { type: 'text/plain' }), 'grande.txt');
+
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.deepStrictEqual(await response.json(), { message: 'Arquivo excede o tamanho máximo permitido.' });
+  } finally {
+    server.close();
+  }
+});
+
+test('deve rejeitar responsável inválido sem registrar o documento', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['conteúdo válido'], { type: 'text/plain' }), 'valido.txt');
+    formData.append('owner', 'a'.repeat(101));
+
+    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    assert.strictEqual(uploadResponse.status, 400);
+    assert.deepStrictEqual(await uploadResponse.json(), { message: 'Responsável inválido.' });
+
+    const listResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents`);
+    const documents = await listResponse.json();
+    assert.ok(!documents.some((document) => document.originalName === 'valido.txt'));
+  } finally {
+    server.close();
+  }
+});
+
+test('deve retornar 404 para download de documento inexistente', async () => {
+  const server = await startServer();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/documents/inexistente/download`);
+
+    assert.strictEqual(response.status, 404);
+    assert.deepStrictEqual(await response.json(), { message: 'Documento não encontrado.' });
+  } finally {
+    server.close();
+  }
+});
