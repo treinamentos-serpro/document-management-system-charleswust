@@ -75,8 +75,12 @@ async function downloadDocument(req, res) {
       return res.status(404).json({ message: 'Arquivo físico do documento não encontrado.' });
     }
 
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+      return res.status(500).json({ message: 'Erro ao ler o arquivo solicitado.' });
+    }
+
     return res.status(500).json({
-      message: error.message || 'Erro ao baixar documento.',
+      message: 'Erro ao baixar documento.',
     });
   }
 }

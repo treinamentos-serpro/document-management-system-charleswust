@@ -47,10 +47,22 @@ export async function downloadDocument(id, fallbackFileName) {
   }
 
   const contentDisposition = response.headers.get('content-disposition');
+  const utf8FileNameMatch = contentDisposition?.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
   const fileNameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i);
+  let fileName = fallbackFileName;
+
+  if (utf8FileNameMatch?.[1]) {
+    try {
+      fileName = decodeURIComponent(utf8FileNameMatch[1]);
+    } catch {
+      fileName = fallbackFileName;
+    }
+  } else if (fileNameMatch?.[1]) {
+    fileName = fileNameMatch[1];
+  }
 
   return {
     blob: await response.blob(),
-    fileName: fileNameMatch?.[1] || fallbackFileName,
+    fileName,
   };
 }

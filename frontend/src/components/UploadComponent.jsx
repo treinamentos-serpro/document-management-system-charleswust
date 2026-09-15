@@ -38,8 +38,9 @@ export default function UploadComponent({ onUpload }) {
     if (uploaded) {
       try {
         await onUpload();
-      } catch {
-        return;
+      } catch (refreshError) {
+        setSuccess('');
+        setError(refreshError?.message || 'Documento enviado, mas não foi possível atualizar a lista.');
       }
     }
   }

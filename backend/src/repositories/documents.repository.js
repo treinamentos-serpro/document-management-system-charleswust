@@ -45,6 +45,18 @@ function getTemporaryUploadPath(sourcePath) {
   return temporaryUploadPath;
 }
 
+function getManagedStoragePath(storagePath) {
+  const resolvedStoragePath = path.resolve(String(storagePath || ''));
+  const fileName = path.basename(resolvedStoragePath);
+  const validatedStoragePath = getStoragePath(fileName);
+
+  if (validatedStoragePath !== resolvedStoragePath) {
+    throw new Error('Caminho de armazenamento inválido.');
+  }
+
+  return validatedStoragePath;
+}
+
 async function moveUploadedFile(sourcePath, fileName) {
   await ensureStorageDirectory();
   const temporaryUploadPath = getTemporaryUploadPath(sourcePath);
@@ -54,7 +66,8 @@ async function moveUploadedFile(sourcePath, fileName) {
 }
 
 async function removeFile(storagePath) {
-  await fs.unlink(storagePath).catch((error) => {
+  const managedStoragePath = getManagedStoragePath(storagePath);
+  await fs.unlink(managedStoragePath).catch((error) => {
     if (error.code !== 'ENOENT') {
       throw error;
     }
