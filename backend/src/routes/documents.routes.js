@@ -7,7 +7,7 @@ const { randomUUID } = require('node:crypto');
 const documentsController = require('../controllers/documents.controller');
 
 const router = express.Router();
-const storageDir = path.resolve(__dirname, '../../storage');
+const storageDir = path.resolve(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'));
 const maxFileSize = Number(process.env.MAX_FILE_SIZE_BYTES || 10 * 1024 * 1024);
 const allowedMimeTypes = new Set((process.env.ALLOWED_MIME_TYPES || [
   'application/pdf',

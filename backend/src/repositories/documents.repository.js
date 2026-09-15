@@ -34,6 +34,12 @@ async function removeFile(storagePath) {
   });
 }
 
+async function resetDocumentsStore() {
+  documents.length = 0;
+  await fs.rm(STORAGE_DIR, { recursive: true, force: true });
+  await ensureStorageDirectory();
+}
+
 function createDocument(documentData) {
   const document = {
     ...documentData,
@@ -57,6 +63,7 @@ module.exports = {
   findDocumentById,
   moveUploadedFile,
   removeFile,
+  resetDocumentsStore,
   getStoragePath,
   STORAGE_DIR,
 };
