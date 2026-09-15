@@ -1,12 +1,38 @@
-const { test } = require('node:test');
+const { after, beforeEach, test } = require('node:test');
 const assert = require('node:assert');
+const os = require('node:os');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+
+process.env.STORAGE_DIR = path.join(os.tmpdir(), `dms-backend-tests-${process.pid}-${randomUUID()}`);
+
 const app = require('../src/app');
+const repository = require('../src/repositories/documents.repository');
 
 async function startServer() {
   const server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   return server;
 }
+
+async function uploadDocument(server, { content, fileName, mimeType = 'text/plain', owner = 'anonymous' }) {
+  const formData = new FormData();
+  formData.append('file', new Blob([content], { type: mimeType }), fileName);
+  formData.append('owner', owner);
+
+  return fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+beforeEach(async () => {
+  await repository.resetDocumentsStore();
+});
+
+after(async () => {
+  await repository.resetDocumentsStore();
+});
 
 test('o app backend é exportado', () => {
   assert.ok(app, 'o app deve estar definido');
@@ -17,13 +43,10 @@ test('deve fazer upload e listar documentos', async () => {
   const server = await startServer();
 
   try {
-    const formData = new FormData();
-    formData.append('file', new Blob(['conteudo do documento'], { type: 'text/plain' }), 'arquivo.txt');
-    formData.append('owner', 'user-123');
-
-    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
-      method: 'POST',
-      body: formData,
+    const uploadResponse = await uploadDocument(server, {
+      content: 'conteudo do documento',
+      fileName: 'arquivo.txt',
+      owner: 'user-123',
     });
 
     assert.strictEqual(uploadResponse.status, 201, 'o upload deve retornar 201');
@@ -48,19 +71,17 @@ test('deve baixar o arquivo salvo pelo identificador', async () => {
   const server = await startServer();
 
   try {
-    const formData = new FormData();
-    formData.append('file', new Blob(['texto de teste para download'], { type: 'text/plain' }), 'download.txt');
-    formData.append('owner', 'user-456');
-
-    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
-      method: 'POST',
-      body: formData,
+    const uploadResponse = await uploadDocument(server, {
+      content: 'texto de teste para download',
+      fileName: 'download.txt',
+      owner: 'user-456',
     });
 
     const uploadedDocument = await uploadResponse.json();
     const downloadResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents/${uploadedDocument.id}/download`);
 
     assert.strictEqual(downloadResponse.status, 200, 'o download deve retornar 200');
+    assert.strictEqual(downloadResponse.headers.get('content-type'), 'text/plain');
     const content = await downloadResponse.text();
     assert.strictEqual(content, 'texto de teste para download');
   } finally {
@@ -88,12 +109,10 @@ test('deve rejeitar tipo de arquivo não permitido com resposta JSON', async () 
   const server = await startServer();
 
   try {
-    const formData = new FormData();
-    formData.append('file', new Blob(['conteúdo executável'], { type: 'application/x-msdownload' }), 'arquivo.exe');
-
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
-      method: 'POST',
-      body: formData,
+    const response = await uploadDocument(server, {
+      content: 'conteúdo executável',
+      fileName: 'arquivo.exe',
+      mimeType: 'application/x-msdownload',
     });
 
     assert.strictEqual(response.status, 400);
@@ -107,12 +126,9 @@ test('deve rejeitar arquivo acima do limite com resposta JSON', async () => {
   const server = await startServer();
 
   try {
-    const formData = new FormData();
-    formData.append('file', new Blob(['a'.repeat(10 * 1024 * 1024 + 1)], { type: 'text/plain' }), 'grande.txt');
-
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
-      method: 'POST',
-      body: formData,
+    const response = await uploadDocument(server, {
+      content: 'a'.repeat(10 * 1024 * 1024 + 1),
+      fileName: 'grande.txt',
     });
 
     assert.strictEqual(response.status, 400);
@@ -126,13 +142,10 @@ test('deve rejeitar responsável inválido sem registrar o documento', async () 
   const server = await startServer();
 
   try {
-    const formData = new FormData();
-    formData.append('file', new Blob(['conteúdo válido'], { type: 'text/plain' }), 'valido.txt');
-    formData.append('owner', 'a'.repeat(101));
-
-    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
-      method: 'POST',
-      body: formData,
+    const uploadResponse = await uploadDocument(server, {
+      content: 'conteúdo válido',
+      fileName: 'valido.txt',
+      owner: 'a'.repeat(101),
     });
 
     assert.strictEqual(uploadResponse.status, 400);

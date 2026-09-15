@@ -1,8 +1,9 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+const { STORAGE_DIR } = require('../config/storage.config');
+
 const documents = [];
-const STORAGE_DIR = path.resolve(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'));
 
 async function ensureStorageDirectory() {
   await fs.mkdir(STORAGE_DIR, { recursive: true });
@@ -34,6 +35,12 @@ async function removeFile(storagePath) {
   });
 }
 
+async function resetDocumentsStore() {
+  documents.length = 0;
+  await fs.rm(STORAGE_DIR, { recursive: true, force: true });
+  await ensureStorageDirectory();
+}
+
 function createDocument(documentData) {
   const document = {
     ...documentData,
@@ -57,6 +64,7 @@ module.exports = {
   findDocumentById,
   moveUploadedFile,
   removeFile,
+  resetDocumentsStore,
   getStoragePath,
   STORAGE_DIR,
 };
