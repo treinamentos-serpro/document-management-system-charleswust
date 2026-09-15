@@ -1,8 +1,9 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+const { STORAGE_DIR } = require('../config/storage.config');
+
 const documents = [];
-const STORAGE_DIR = path.resolve(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'));
 
 async function ensureStorageDirectory() {
   await fs.mkdir(STORAGE_DIR, { recursive: true });
