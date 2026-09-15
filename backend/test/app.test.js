@@ -2,9 +2,68 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const app = require('../src/app');
 
-// Teste de fumaça do seed: garante que o app Express foi exportado.
-// Novos testes serão adicionados durante os Steps 2, 6 e 7 com auxílio do Copilot.
+async function startServer() {
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  return server;
+}
+
 test('o app backend é exportado', () => {
   assert.ok(app, 'o app deve estar definido');
   assert.strictEqual(typeof app, 'function', 'o app Express deve ser uma função');
+});
+
+test('deve fazer upload e listar documentos', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['conteudo do documento'], { type: 'text/plain' }), 'arquivo.txt');
+    formData.append('owner', 'user-123');
+
+    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    assert.strictEqual(uploadResponse.status, 201, 'o upload deve retornar 201');
+
+    const uploadedDocument = await uploadResponse.json();
+    assert.strictEqual(uploadedDocument.originalName, 'arquivo.txt');
+    assert.strictEqual(uploadedDocument.owner, 'user-123');
+    assert.ok(uploadedDocument.id, 'o documento deve ter identificador');
+
+    const listResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents`);
+    assert.strictEqual(listResponse.status, 200, 'a listagem deve retornar 200');
+
+    const documents = await listResponse.json();
+    assert.ok(Array.isArray(documents), 'a listagem deve retornar um array');
+    assert.ok(documents.some((document) => document.id === uploadedDocument.id), 'o documento enviado deve aparecer na listagem');
+  } finally {
+    server.close();
+  }
+});
+
+test('deve baixar o arquivo salvo pelo identificador', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['texto de teste para download'], { type: 'text/plain' }), 'download.txt');
+    formData.append('owner', 'user-456');
+
+    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const uploadedDocument = await uploadResponse.json();
+    const downloadResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents/${uploadedDocument.id}/download`);
+
+    assert.strictEqual(downloadResponse.status, 200, 'o download deve retornar 200');
+    const content = await downloadResponse.text();
+    assert.strictEqual(content, 'texto de teste para download');
+  } finally {
+    server.close();
+  }
 });
