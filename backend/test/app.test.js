@@ -1,8 +1,10 @@
-const { beforeEach, test } = require('node:test');
+const { after, beforeEach, test } = require('node:test');
 const assert = require('node:assert');
+const os = require('node:os');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 
-process.env.STORAGE_DIR = path.join('/tmp', 'dms-backend-tests');
+process.env.STORAGE_DIR = path.join(os.tmpdir(), `dms-backend-tests-${process.pid}-${randomUUID()}`);
 
 const app = require('../src/app');
 const repository = require('../src/repositories/documents.repository');
@@ -25,6 +27,10 @@ async function uploadDocument(server, { content, fileName, mimeType = 'text/plai
 }
 
 beforeEach(async () => {
+  await repository.resetDocumentsStore();
+});
+
+after(async () => {
   await repository.resetDocumentsStore();
 });
 
