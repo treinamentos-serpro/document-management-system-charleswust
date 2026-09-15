@@ -1,40 +1,7 @@
-const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
 const repository = require('../repositories/documents.repository');
-
-const MAX_OWNER_LENGTH = Number(process.env.MAX_OWNER_LENGTH || 100);
-
-function sanitizeOriginalName(fileName, id) {
-  const baseName = path.basename(fileName || `document-${id}`);
-  const sanitizedName = baseName.replace(/[\u0000-\u001F\u007F"\\/]/g, '_').trim();
-
-  if (!sanitizedName) {
-    return `document-${id}`;
-  }
-
-  return sanitizedName.slice(0, 255);
-}
-
-function normalizeOwner(owner) {
-  const normalizedOwner = String(owner || 'anonymous').trim();
-
-  if (!normalizedOwner || normalizedOwner.length > MAX_OWNER_LENGTH) {
-    throw new Error('Responsável inválido.');
-  }
-
-  return normalizedOwner;
-}
-
-function sanitizeDocument(document) {
-  return {
-    id: document.id,
-    originalName: document.originalName,
-    size: document.size,
-    uploadedAt: document.uploadedAt,
-    owner: document.owner,
-  };
-}
+const documentMetadataService = require('./document-metadata.service');
 
 async function uploadDocument(file, owner) {
   if (!file) {
@@ -42,23 +9,20 @@ async function uploadDocument(file, owner) {
   }
 
   const id = randomUUID();
-  const originalName = sanitizeOriginalName(file.originalname, id);
-  const extension = path.extname(originalName) || '';
-  const fileName = `${id}${extension}`;
+  const originalName = documentMetadataService.sanitizeOriginalName(file.originalname, id);
+  const fileName = documentMetadataService.buildStorageFileName(originalName, id);
   const storagePath = await repository.moveUploadedFile(file.path, fileName);
 
   try {
-    const document = repository.createDocument({
+    const document = repository.createDocument(documentMetadataService.createDocumentData({
+      file,
+      owner,
       id,
-      originalName,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-      owner: normalizeOwner(owner),
       storagePath,
-      mimeType: file.mimetype || 'application/octet-stream',
-    });
+      originalName,
+    }));
 
-    return sanitizeDocument(document);
+    return documentMetadataService.toDocumentResponse(document);
   } catch (error) {
     await repository.removeFile(storagePath);
     throw error;
@@ -66,7 +30,7 @@ async function uploadDocument(file, owner) {
 }
 
 function listDocuments() {
-  return repository.getAllDocuments().map((document) => sanitizeDocument(document));
+  return repository.getAllDocuments().map((document) => documentMetadataService.toDocumentResponse(document));
 }
 
 function getDocumentById(id) {
@@ -78,6 +42,7 @@ function getDocumentById(id) {
 
   return {
     ...document,
+    storagePath: repository.getManagedStoragePath(document.storagePath),
   };
 }
 
@@ -85,5 +50,5 @@ module.exports = {
   uploadDocument,
   listDocuments,
   getDocumentById,
-  sanitizeOriginalName,
+  sanitizeOriginalName: documentMetadataService.sanitizeOriginalName,
 };

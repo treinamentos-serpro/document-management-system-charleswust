@@ -1,12 +1,22 @@
-const { test } = require('node:test');
+const { test, beforeEach, after } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs/promises');
 const app = require('../src/app');
+const documentsRepository = require('../src/repositories/documents.repository');
 
 async function startServer() {
   const server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   return server;
 }
+
+beforeEach(async () => {
+  await documentsRepository.resetDocuments();
+});
+
+after(async () => {
+  await documentsRepository.resetDocuments();
+});
 
 test('o app backend é exportado', () => {
   assert.ok(app, 'o app deve estar definido');
@@ -61,6 +71,9 @@ test('deve baixar o arquivo salvo pelo identificador', async () => {
     const downloadResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents/${uploadedDocument.id}/download`);
 
     assert.strictEqual(downloadResponse.status, 200, 'o download deve retornar 200');
+    assert.strictEqual(downloadResponse.headers.get('content-type'), 'text/plain');
+    assert.ok(downloadResponse.headers.get('content-disposition')?.includes('attachment; filename="download.txt"'));
+    assert.ok(downloadResponse.headers.get('content-disposition')?.includes("filename*=UTF-8''download.txt"));
     const content = await downloadResponse.text();
     assert.strictEqual(content, 'texto de teste para download');
   } finally {
@@ -154,6 +167,34 @@ test('deve retornar 404 para download de documento inexistente', async () => {
 
     assert.strictEqual(response.status, 404);
     assert.deepStrictEqual(await response.json(), { message: 'Documento não encontrado.' });
+  } finally {
+    server.close();
+  }
+});
+
+test('deve retornar 404 em JSON quando o arquivo físico do documento não existir', async () => {
+  const server = await startServer();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob(['conteúdo órfão'], { type: 'text/plain' }), 'orfao.txt');
+    formData.append('owner', 'user-789');
+
+    const uploadResponse = await fetch(`http://127.0.0.1:${server.address().port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    assert.strictEqual(uploadResponse.status, 201);
+    const uploadedDocument = await uploadResponse.json();
+    const storedDocument = documentsRepository.findDocumentById(uploadedDocument.id);
+
+    await fs.unlink(storedDocument.storagePath);
+
+    const downloadResponse = await fetch(`http://127.0.0.1:${server.address().port}/documents/${uploadedDocument.id}/download`);
+
+    assert.strictEqual(downloadResponse.status, 404);
+    assert.deepStrictEqual(await downloadResponse.json(), { message: 'Arquivo físico do documento não encontrado.' });
   } finally {
     server.close();
   }

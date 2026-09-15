@@ -1,9 +1,17 @@
 const fs = require('node:fs');
+const fsPromises = require('node:fs/promises');
 
 const documentsService = require('../services/documents.service');
+const BAD_REQUEST_MESSAGES = new Set([
+  'Arquivo obrigatório para upload.',
+  'Responsável inválido.',
+  'Tipo de arquivo não permitido.',
+  'Nome de arquivo de armazenamento inválido.',
+  'Caminho temporário de upload inválido.',
+]);
 
 function getStatusCode(error) {
-  return error.message.includes('Arquivo') || error.message.includes('Responsável') ? 400 : 500;
+  return BAD_REQUEST_MESSAGES.has(error.message) ? 400 : 500;
 }
 
 function buildContentDisposition(fileName) {
@@ -37,7 +45,7 @@ function listDocuments(req, res) {
   }
 }
 
-function downloadDocument(req, res) {
+async function downloadDocument(req, res) {
   try {
     const { id } = req.params;
     const document = documentsService.getDocumentById(id);
@@ -46,6 +54,7 @@ function downloadDocument(req, res) {
       return res.status(404).json({ message: 'Documento não encontrado.' });
     }
 
+    await fsPromises.access(document.storagePath, fs.constants.R_OK);
     res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', buildContentDisposition(document.originalName));
 
@@ -62,8 +71,16 @@ function downloadDocument(req, res) {
 
     return fileStream.pipe(res);
   } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ message: 'Arquivo físico do documento não encontrado.' });
+    }
+
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+      return res.status(500).json({ message: 'Erro ao ler o arquivo solicitado.' });
+    }
+
     return res.status(500).json({
-      message: error.message || 'Erro ao baixar documento.',
+      message: 'Erro ao baixar documento.',
     });
   }
 }
