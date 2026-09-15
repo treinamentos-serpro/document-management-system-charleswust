@@ -102,6 +102,7 @@ module.exports = {
   createDocument,
   getAllDocuments,
   findDocumentById,
+  getManagedStoragePath,
   resetDocuments,
   moveUploadedFile,
   removeFile,

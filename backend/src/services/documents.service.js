@@ -42,6 +42,7 @@ function getDocumentById(id) {
 
   return {
     ...document,
+    storagePath: repository.getManagedStoragePath(document.storagePath),
   };
 }
 
