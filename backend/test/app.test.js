@@ -1,12 +1,21 @@
-const { test } = require('node:test');
+const { test, beforeEach, after } = require('node:test');
 const assert = require('node:assert');
 const app = require('../src/app');
+const documentsRepository = require('../src/repositories/documents.repository');
 
 async function startServer() {
   const server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   return server;
 }
+
+beforeEach(async () => {
+  await documentsRepository.resetDocuments();
+});
+
+after(async () => {
+  await documentsRepository.resetDocuments();
+});
 
 test('o app backend é exportado', () => {
   assert.ok(app, 'o app deve estar definido');

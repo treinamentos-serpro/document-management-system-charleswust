@@ -3,12 +3,21 @@ const path = require('node:path');
 
 const documents = [];
 const STORAGE_DIR = path.resolve(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'));
+const STORAGE_FILE_NAME_PATTERN = /^[0-9a-f-]{36}(?:\.[^/\\\u0000-\u001F\u007F]+)?$/i;
+const STORAGE_GITKEEP_CONTENT = '# Mantenha esta pasta no controle de versão.\n# Os arquivos enviados (upload local via multer) serão gravados aqui em tempo de execução.\n';
 
 async function ensureStorageDirectory() {
   await fs.mkdir(STORAGE_DIR, { recursive: true });
 }
 
+function assertValidStorageFileName(fileName) {
+  if (typeof fileName !== 'string' || !STORAGE_FILE_NAME_PATTERN.test(fileName)) {
+    throw new Error('Nome de arquivo de armazenamento inválido.');
+  }
+}
+
 function getStoragePath(fileName) {
+  assertValidStorageFileName(fileName);
   const storagePath = path.resolve(STORAGE_DIR, fileName);
   const relativePath = path.relative(STORAGE_DIR, storagePath);
 
@@ -51,10 +60,18 @@ function findDocumentById(id) {
   return documents.find((document) => document.id === id);
 }
 
+async function resetDocuments() {
+  documents.length = 0;
+  await fs.rm(STORAGE_DIR, { recursive: true, force: true });
+  await ensureStorageDirectory();
+  await fs.writeFile(path.join(STORAGE_DIR, '.gitkeep'), STORAGE_GITKEEP_CONTENT);
+}
+
 module.exports = {
   createDocument,
   getAllDocuments,
   findDocumentById,
+  resetDocuments,
   moveUploadedFile,
   removeFile,
   getStoragePath,
