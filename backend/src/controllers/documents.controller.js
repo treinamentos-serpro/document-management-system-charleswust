@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const fsPromises = require('node:fs/promises');
 
 const documentsService = require('../services/documents.service');
 
@@ -37,7 +38,7 @@ function listDocuments(req, res) {
   }
 }
 
-function downloadDocument(req, res) {
+async function downloadDocument(req, res) {
   try {
     const { id } = req.params;
     const document = documentsService.getDocumentById(id);
@@ -46,6 +47,7 @@ function downloadDocument(req, res) {
       return res.status(404).json({ message: 'Documento não encontrado.' });
     }
 
+    await fsPromises.access(document.storagePath, fs.constants.R_OK);
     res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', buildContentDisposition(document.originalName));
 
@@ -62,6 +64,10 @@ function downloadDocument(req, res) {
 
     return fileStream.pipe(res);
   } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ message: 'Arquivo físico do documento não encontrado.' });
+    }
+
     return res.status(500).json({
       message: error.message || 'Erro ao baixar documento.',
     });

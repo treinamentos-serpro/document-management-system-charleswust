@@ -17,8 +17,12 @@ export default function DownloadButton({ document }) {
 
       link.href = url;
       link.download = fileName;
+      window.document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+        link.remove();
+      }, 0);
     } catch (downloadError) {
       setError(downloadError.message);
     } finally {

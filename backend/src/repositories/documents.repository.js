@@ -4,6 +4,7 @@ const path = require('node:path');
 const documents = [];
 const STORAGE_DIR = path.resolve(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'));
 const STORAGE_FILE_NAME_PATTERN = /^[0-9a-f-]{36}(?:\.[^/\\\u0000-\u001F\u007F]+)?$/i;
+const TEMP_STORAGE_FILE_NAME_PATTERN = /^[0-9a-f-]{36}$/i;
 const STORAGE_GITKEEP_CONTENT = '# Mantenha esta pasta no controle de versão.\n# Os arquivos enviados (upload local via multer) serão gravados aqui em tempo de execução.\n';
 
 async function ensureStorageDirectory() {
@@ -28,10 +29,27 @@ function getStoragePath(fileName) {
   return storagePath;
 }
 
+function getTemporaryUploadPath(sourcePath) {
+  const temporaryUploadPath = path.resolve(String(sourcePath || ''));
+  const relativePath = path.relative(STORAGE_DIR, temporaryUploadPath);
+  const fileName = path.basename(temporaryUploadPath);
+
+  if (
+    relativePath.startsWith('..')
+    || path.isAbsolute(relativePath)
+    || !TEMP_STORAGE_FILE_NAME_PATTERN.test(fileName)
+  ) {
+    throw new Error('Caminho temporário de upload inválido.');
+  }
+
+  return temporaryUploadPath;
+}
+
 async function moveUploadedFile(sourcePath, fileName) {
   await ensureStorageDirectory();
+  const temporaryUploadPath = getTemporaryUploadPath(sourcePath);
   const storagePath = getStoragePath(fileName);
-  await fs.rename(sourcePath, storagePath);
+  await fs.rename(temporaryUploadPath, storagePath);
   return storagePath;
 }
 
